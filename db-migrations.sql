@@ -1,5 +1,5 @@
 -- Run this on your Supabase / Neon / AWS database BEFORE starting Docker
--- Enable pgvector extension (Supabase and Neon support this
+-- Enable pgvector extension (Supabase and Neon support this)
 CREATE EXTENSION IF NOT EXISTS vector;
 
 CREATE TABLE IF NOT EXISTS users (

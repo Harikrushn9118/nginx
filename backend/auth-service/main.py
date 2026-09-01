@@ -9,7 +9,6 @@ import time
 import base64
 
 app = FastAPI()
-
 INSTANCE = os.getenv("INSTANCE_ID", "1")
 DB_URL = os.getenv("DATABASE_URL")
 JWT_SECRET = os.getenv("JWT_SECRET", "demo-secret")
