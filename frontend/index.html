@@ -3,115 +3,750 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SocialConnect</title>
+    <title>SocialConnect — NGINX Load Balanced</title>
+    <meta name="description" content="SocialConnect: A microservices social platform powered by NGINX load balancing across 11 containers.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0a0a0a; color: #e4e4e7; min-height: 100vh; }
-        .header { background: linear-gradient(135deg, #1a1a2e, #16213e); padding: 20px 30px; border-bottom: 1px solid #27272a; display: flex; justify-content: space-between; align-items: center; }
-        .header h1 { color: #818cf8; font-size: 22px; }
-        .header .status { font-size: 12px; color: #71717a; }
-        .logged-in-bar { background: #052e16; border-bottom: 1px solid #166534; padding: 10px 30px; font-size: 13px; color: #4ade80; display: none; justify-content: space-between; align-items: center; }
-        .logged-in-bar button { background: #991b1b; color: white; border: none; padding: 5px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; }
-        .container { max-width: 700px; margin: 30px auto; padding: 0 20px; }
-        .card { background: #18181b; border: 1px solid #27272a; border-radius: 12px; padding: 24px; margin-bottom: 16px; }
-        .card h2 { color: #a5b4fc; font-size: 16px; margin-bottom: 12px; }
-        .input-row { display: flex; gap: 10px; margin-bottom: 10px; }
-        input { background: #27272a; border: 1px solid #3f3f46; color: #e4e4e7; padding: 10px 14px; border-radius: 8px; flex: 1; font-size: 14px; outline: none; }
-        input:focus { border-color: #818cf8; }
-        button { background: #4f46e5; color: white; border: none; padding: 10px 18px; border-radius: 8px; font-size: 14px; cursor: pointer; font-weight: 500; }
-        button:hover { background: #4338ca; }
-        button.secondary { background: #27272a; color: #a1a1aa; }
-        button.secondary:hover { background: #3f3f46; }
-        button.like { background: #be185d; padding: 6px 14px; font-size: 12px; }
-        button.like:hover { background: #9d174d; }
-        .result { margin-top: 12px; padding: 12px; border-radius: 8px; font-size: 13px; font-family: monospace; white-space: pre-wrap; word-break: break-all; max-height: 300px; overflow-y: auto; }
-        .result.success { background: #052e16; border: 1px solid #166534; color: #4ade80; }
-        .result.error { background: #450a0a; border: 1px solid #991b1b; color: #fca5a5; }
-        .result.info { background: #0c1929; border: 1px solid #1e3a5f; color: #93c5fd; }
-        .post-item { background: #1f1f23; border: 1px solid #27272a; border-radius: 8px; padding: 14px; margin-top: 8px; }
-        .post-item .username { color: #818cf8; font-weight: 600; font-size: 13px; }
-        .post-item .content { color: #d4d4d8; margin: 6px 0; font-size: 14px; }
-        .post-item .meta { color: #71717a; font-size: 11px; display: flex; justify-content: space-between; align-items: center; }
-        .section-title { color: #71717a; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 16px; }
-        .badge { display: inline-block; background: #312e81; color: #a5b4fc; padding: 2px 8px; border-radius: 4px; font-size: 11px; margin-left: 8px; }
+        /* ── RESET & BASE ── */
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --bg-primary: #06060a;
+            --bg-card: rgba(17, 17, 27, 0.7);
+            --bg-card-hover: rgba(25, 25, 40, 0.8);
+            --bg-input: rgba(30, 30, 50, 0.6);
+            --border: rgba(99, 102, 241, 0.12);
+            --border-focus: rgba(99, 102, 241, 0.5);
+            --text-primary: #ededf0;
+            --text-secondary: #8b8da3;
+            --text-muted: #5a5c72;
+            --accent: #6366f1;
+            --accent-hover: #818cf8;
+            --accent-glow: rgba(99, 102, 241, 0.25);
+            --success: #10b981;
+            --success-bg: rgba(16, 185, 129, 0.08);
+            --error: #f43f5e;
+            --error-bg: rgba(244, 63, 94, 0.08);
+            --info-bg: rgba(99, 102, 241, 0.06);
+            --pink: #ec4899;
+            --radius: 16px;
+            --radius-sm: 10px;
+            --shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* ── ANIMATED BACKGROUND ── */
+        .bg-gradient {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: 0;
+            pointer-events: none;
+            overflow: hidden;
+        }
+        .bg-gradient .orb {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(80px);
+            opacity: 0.15;
+            animation: float 20s ease-in-out infinite;
+        }
+        .bg-gradient .orb:nth-child(1) {
+            width: 500px; height: 500px;
+            background: #6366f1;
+            top: -10%; left: -5%;
+            animation-delay: 0s;
+        }
+        .bg-gradient .orb:nth-child(2) {
+            width: 400px; height: 400px;
+            background: #ec4899;
+            top: 50%; right: -10%;
+            animation-delay: -7s;
+            animation-duration: 25s;
+        }
+        .bg-gradient .orb:nth-child(3) {
+            width: 350px; height: 350px;
+            background: #8b5cf6;
+            bottom: -5%; left: 30%;
+            animation-delay: -14s;
+            animation-duration: 22s;
+        }
+        @keyframes float {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            25% { transform: translate(40px, -30px) scale(1.05); }
+            50% { transform: translate(-20px, 20px) scale(0.95); }
+            75% { transform: translate(30px, 40px) scale(1.02); }
+        }
+
+        /* ── HEADER ── */
+        .header {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: rgba(6, 6, 10, 0.75);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border);
+            padding: 0 32px;
+            height: 64px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .logo-icon {
+            width: 36px; height: 36px;
+            background: linear-gradient(135deg, #6366f1, #ec4899);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            font-weight: 800;
+            color: white;
+            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
+        }
+        .logo-text {
+            font-size: 20px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #c7d2fe, #e0e7ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            letter-spacing: -0.5px;
+        }
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(99, 102, 241, 0.08);
+            border: 1px solid rgba(99, 102, 241, 0.15);
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 12px;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+        .status-dot {
+            width: 7px; height: 7px;
+            background: var(--success);
+            border-radius: 50%;
+            box-shadow: 0 0 8px rgba(16, 185, 129, 0.5);
+            animation: pulse-dot 2s ease-in-out infinite;
+        }
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        /* ── LOGGED IN BAR ── */
+        .logged-in-bar {
+            display: none;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            padding: 10px 32px;
+            background: linear-gradient(90deg, rgba(16, 185, 129, 0.06), rgba(16, 185, 129, 0.02));
+            border-bottom: 1px solid rgba(16, 185, 129, 0.15);
+            font-size: 13px;
+            color: var(--success);
+            font-weight: 500;
+            position: relative;
+            z-index: 99;
+        }
+        .logged-in-bar .user-chip {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .logged-in-bar .avatar {
+            width: 24px; height: 24px;
+            background: linear-gradient(135deg, var(--success), #059669);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            font-weight: 700;
+            color: white;
+        }
+        .logout-btn {
+            background: rgba(244, 63, 94, 0.1);
+            color: var(--error);
+            border: 1px solid rgba(244, 63, 94, 0.2);
+            padding: 5px 14px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+        .logout-btn:hover {
+            background: rgba(244, 63, 94, 0.2);
+        }
+
+        /* ── CONTAINER ── */
+        .container {
+            max-width: 680px;
+            margin: 32px auto;
+            padding: 0 20px 60px;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* ── TAB NAV ── */
+        .tab-nav {
+            display: flex;
+            gap: 4px;
+            background: var(--bg-card);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 5px;
+            margin-bottom: 24px;
+        }
+        .tab-btn {
+            flex: 1;
+            padding: 10px 8px;
+            background: transparent;
+            border: none;
+            border-radius: 10px;
+            color: var(--text-muted);
+            font-family: inherit;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+        .tab-btn:hover {
+            color: var(--text-secondary);
+            background: rgba(99, 102, 241, 0.05);
+        }
+        .tab-btn.active {
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(139, 92, 246, 0.1));
+            color: var(--accent-hover);
+            box-shadow: 0 2px 12px rgba(99, 102, 241, 0.12);
+        }
+        .tab-btn .tab-icon { font-size: 15px; }
+
+        /* ── CARDS ── */
+        .card {
+            background: var(--bg-card);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 28px;
+            margin-bottom: 20px;
+            box-shadow: var(--shadow);
+            transition: border-color 0.3s ease, transform 0.2s ease;
+            animation: cardIn 0.4s ease-out;
+        }
+        .card:hover {
+            border-color: rgba(99, 102, 241, 0.2);
+        }
+        @keyframes cardIn {
+            from { opacity: 0; transform: translateY(12px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+        .card-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--text-primary);
+            letter-spacing: -0.3px;
+        }
+        .card-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(139, 92, 246, 0.08));
+            border: 1px solid rgba(99, 102, 241, 0.15);
+            color: var(--accent-hover);
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+        }
+
+        /* ── TAB SECTIONS ── */
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        /* ── INPUTS ── */
+        .form-group {
+            margin-bottom: 14px;
+        }
+        .form-label {
+            display: block;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin-bottom: 6px;
+            letter-spacing: 0.3px;
+        }
+        .input-row {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 14px;
+        }
+        input, .text-input {
+            width: 100%;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            padding: 12px 16px;
+            border-radius: var(--radius-sm);
+            font-size: 14px;
+            font-family: inherit;
+            outline: none;
+            transition: all 0.25s ease;
+        }
+        input::placeholder {
+            color: var(--text-muted);
+        }
+        input:focus {
+            border-color: var(--border-focus);
+            box-shadow: 0 0 0 3px var(--accent-glow);
+            background: rgba(35, 35, 60, 0.6);
+        }
+
+        /* ── BUTTONS ── */
+        .btn-row {
+            display: flex;
+            gap: 10px;
+            margin-top: 4px;
+        }
+        button, .btn {
+            font-family: inherit;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border: none;
+            outline: none;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #6366f1, #7c3aed);
+            color: white;
+            padding: 12px 24px;
+            border-radius: var(--radius-sm);
+            font-size: 14px;
+            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.25);
+        }
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #818cf8, #8b5cf6);
+            box-shadow: 0 6px 20px rgba(99, 102, 241, 0.35);
+            transform: translateY(-1px);
+        }
+        .btn-primary:active {
+            transform: translateY(0);
+        }
+        .btn-secondary {
+            background: rgba(99, 102, 241, 0.08);
+            color: var(--accent-hover);
+            border: 1px solid rgba(99, 102, 241, 0.15);
+            padding: 12px 24px;
+            border-radius: var(--radius-sm);
+            font-size: 14px;
+        }
+        .btn-secondary:hover {
+            background: rgba(99, 102, 241, 0.14);
+            border-color: rgba(99, 102, 241, 0.3);
+        }
+        .btn-sm {
+            padding: 8px 16px;
+            font-size: 12px;
+            border-radius: 8px;
+        }
+        .btn-like {
+            background: linear-gradient(135deg, rgba(236, 72, 153, 0.12), rgba(244, 63, 94, 0.1));
+            border: 1px solid rgba(236, 72, 153, 0.2);
+            color: var(--pink);
+            padding: 6px 14px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .btn-like:hover {
+            background: linear-gradient(135deg, rgba(236, 72, 153, 0.2), rgba(244, 63, 94, 0.18));
+            transform: scale(1.05);
+        }
+
+        /* ── RESULT BOXES ── */
+        .result {
+            margin-top: 16px;
+            padding: 14px 16px;
+            border-radius: var(--radius-sm);
+            font-size: 13px;
+            font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+            white-space: pre-wrap;
+            word-break: break-all;
+            max-height: 300px;
+            overflow-y: auto;
+            line-height: 1.6;
+            animation: fadeIn 0.3s ease;
+        }
+        .result::-webkit-scrollbar { width: 4px; }
+        .result::-webkit-scrollbar-track { background: transparent; }
+        .result::-webkit-scrollbar-thumb { background: var(--text-muted); border-radius: 4px; }
+        .result.success {
+            background: var(--success-bg);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+            color: #6ee7b7;
+        }
+        .result.error {
+            background: var(--error-bg);
+            border: 1px solid rgba(244, 63, 94, 0.2);
+            color: #fda4af;
+        }
+        .result.info {
+            background: var(--info-bg);
+            border: 1px solid rgba(99, 102, 241, 0.15);
+            color: #a5b4fc;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(4px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ── POST ITEMS ── */
+        .post-item {
+            background: rgba(25, 25, 45, 0.5);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px 18px;
+            margin-top: 10px;
+            transition: border-color 0.2s;
+            animation: fadeIn 0.3s ease;
+        }
+        .post-item:hover {
+            border-color: rgba(99, 102, 241, 0.2);
+        }
+        .post-item .username {
+            color: var(--accent-hover);
+            font-weight: 700;
+            font-size: 13px;
+            letter-spacing: -0.2px;
+        }
+        .post-item .content {
+            color: var(--text-primary);
+            margin: 8px 0;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        .post-item .meta {
+            color: var(--text-muted);
+            font-size: 11px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 8px;
+            padding-top: 10px;
+            border-top: 1px solid rgba(99, 102, 241, 0.06);
+        }
+        .post-item .likes-info {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .instance-tag {
+            background: rgba(99, 102, 241, 0.06);
+            border: 1px solid rgba(99, 102, 241, 0.1);
+            padding: 2px 8px;
+            border-radius: 6px;
+            font-size: 10px;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        /* ── TOAST ── */
+        .toast-container {
+            position: fixed;
+            top: 80px;
+            right: 24px;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .toast {
+            background: rgba(17, 17, 27, 0.95);
+            backdrop-filter: blur(16px);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 14px 20px;
+            font-size: 13px;
+            font-weight: 500;
+            box-shadow: 0 12px 40px rgba(0,0,0,0.4);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            animation: toastIn 0.35s ease;
+            min-width: 280px;
+        }
+        .toast.success { border-left: 3px solid var(--success); color: #6ee7b7; }
+        .toast.error { border-left: 3px solid var(--error); color: #fda4af; }
+        .toast.info { border-left: 3px solid var(--accent); color: #a5b4fc; }
+        .toast-icon { font-size: 16px; }
+        @keyframes toastIn {
+            from { opacity: 0; transform: translateX(30px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes toastOut {
+            from { opacity: 1; transform: translateX(0); }
+            to { opacity: 0; transform: translateX(30px); }
+        }
+
+        /* ── SECTION DIVIDER ── */
+        .section-label {
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            margin-bottom: 14px;
+        }
+
+        /* ── EMPTY STATE ── */
+        .empty-state {
+            text-align: center;
+            padding: 32px;
+            color: var(--text-muted);
+            font-size: 14px;
+        }
+        .empty-state .empty-icon {
+            font-size: 32px;
+            margin-bottom: 8px;
+            opacity: 0.4;
+        }
+
+        /* ── LOADING SPINNER ── */
+        .spinner {
+            display: inline-block;
+            width: 14px; height: 14px;
+            border: 2px solid rgba(255,255,255,0.15);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ── RESPONSIVE ── */
+        @media (max-width: 600px) {
+            .header { padding: 0 16px; }
+            .container { padding: 0 14px 40px; margin-top: 20px; }
+            .card { padding: 20px; }
+            .tab-btn { font-size: 11px; padding: 8px 4px; }
+            .tab-btn .tab-label { display: none; }
+            .tab-btn .tab-icon { font-size: 18px; }
+            .status-badge { display: none; }
+        }
     </style>
 </head>
 <body>
-    <div class="header">
-        <h1>SocialConnect</h1>
-        <div class="status">NGINX Load Balanced • 11 Containers</div>
+    <div class="bg-gradient">
+        <div class="orb"></div>
+        <div class="orb"></div>
+        <div class="orb"></div>
     </div>
+
+    <header class="header">
+        <div class="header-left">
+            <div class="logo-icon">S</div>
+            <span class="logo-text">SocialConnect</span>
+        </div>
+        <div class="header-right">
+            <div class="status-badge">
+                <span class="status-dot"></span>
+                NGINX Load Balanced &bull; 11 Containers
+            </div>
+        </div>
+    </header>
+
     <div class="logged-in-bar" id="logged-in-bar">
-        <span id="logged-in-text">Logged in as: —</span>
-        <button onclick="logout()">Logout</button>
+        <div class="user-chip">
+            <div class="avatar" id="avatar-letter">?</div>
+            <span id="logged-in-text">Logged in as: —</span>
+        </div>
+        <button class="logout-btn" onclick="logout()">✕ Logout</button>
     </div>
+
     <div class="container">
+        <!-- TAB NAV -->
+        <nav class="tab-nav">
+            <button class="tab-btn active" onclick="switchTab('auth')" id="tab-auth">
+                <span class="tab-icon">🔐</span>
+                <span class="tab-label">Auth</span>
+            </button>
+            <button class="tab-btn" onclick="switchTab('users')" id="tab-users">
+                <span class="tab-icon">👥</span>
+                <span class="tab-label">Users</span>
+            </button>
+            <button class="tab-btn" onclick="switchTab('posts')" id="tab-posts">
+                <span class="tab-icon">📝</span>
+                <span class="tab-label">Posts</span>
+            </button>
+            <button class="tab-btn" onclick="switchTab('search')" id="tab-search">
+                <span class="tab-icon">🔍</span>
+                <span class="tab-label">Search</span>
+            </button>
+        </nav>
 
-        <!-- AUTH -->
-        <div class="card">
-            <h2>Auth Service <span class="badge">ip_hash • 2 containers</span></h2>
-            <div class="input-row">
-                <input id="username" placeholder="Username">
-                <input id="password" placeholder="Password" type="password">
+        <!-- AUTH TAB -->
+        <div class="tab-content active" id="content-auth">
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">Authentication</span>
+                    <span class="card-badge">🔒 ip_hash &bull; 2 instances</span>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Username</label>
+                    <input id="username" placeholder="Enter your username" autocomplete="username">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Password</label>
+                    <input id="password" placeholder="Enter your password" type="password" autocomplete="current-password">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Email <span style="color:var(--text-muted)">(optional)</span></label>
+                    <input id="email" placeholder="you@example.com" autocomplete="email">
+                </div>
+                <div class="btn-row">
+                    <button class="btn btn-primary" onclick="register()" id="btn-register">Create Account</button>
+                    <button class="btn btn-secondary" onclick="login()" id="btn-login">Sign In</button>
+                </div>
+                <div id="auth-result"></div>
             </div>
-            <div class="input-row">
-                <input id="email" placeholder="Email (optional)">
-            </div>
-            <div class="input-row">
-                <button onclick="register()">Register</button>
-                <button class="secondary" onclick="login()">Login</button>
-            </div>
-            <div id="auth-result"></div>
         </div>
 
-        <!-- USERS -->
-        <div class="card">
-            <h2>User Service <span class="badge">least_conn • 2 containers</span></h2>
-            <div class="input-row">
-                <button onclick="listUsers()">List Users</button>
-                <input id="user-id" placeholder="User ID" style="max-width:100px">
-                <button class="secondary" onclick="getUser()">Get Profile</button>
+        <!-- USERS TAB -->
+        <div class="tab-content" id="content-users">
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">User Directory</span>
+                    <span class="card-badge">⚡ least_conn &bull; 2 instances</span>
+                </div>
+                <div class="btn-row" style="margin-bottom:14px">
+                    <button class="btn btn-primary btn-sm" onclick="listUsers()" id="btn-list-users">List All Users</button>
+                </div>
+                <div class="section-label">Lookup by ID</div>
+                <div class="input-row">
+                    <input id="user-id" placeholder="User ID" style="max-width:120px">
+                    <button class="btn btn-secondary btn-sm" onclick="getUser()" id="btn-get-user">Get Profile</button>
+                </div>
+                <div id="user-result"></div>
             </div>
-            <div id="user-result"></div>
         </div>
 
-        <!-- POSTS -->
-        <div class="card">
-            <h2>Post Service <span class="badge">round_robin • 3 containers</span></h2>
-            <div class="input-row">
-                <input id="post-content" placeholder="Write a post..." style="flex:3">
-                <button onclick="createPost()">Post</button>
+        <!-- POSTS TAB -->
+        <div class="tab-content" id="content-posts">
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">Post Feed</span>
+                    <span class="card-badge">🔄 round_robin &bull; 3 instances</span>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Create a Post</label>
+                    <div class="input-row" style="margin-bottom:0">
+                        <input id="post-content" placeholder="What's on your mind?">
+                        <button class="btn btn-primary btn-sm" onclick="createPost()" id="btn-create-post">Post</button>
+                    </div>
+                </div>
+                <button class="btn btn-secondary btn-sm" onclick="getFeed()" id="btn-feed" style="margin-top:6px">🔄 Load Feed</button>
+                <div id="post-result"></div>
             </div>
-            <button class="secondary" onclick="getFeed()" style="margin-top:8px">Load Feed</button>
-            <div id="post-result"></div>
         </div>
 
-        <!-- SEARCH -->
-        <div class="card">
-            <h2>Search Service <span class="badge">least_conn • pgvector</span></h2>
-            <div class="input-row">
-                <input id="search-query" placeholder="Search posts (vector similarity)...">
-                <button onclick="searchPosts()">Search</button>
+        <!-- SEARCH TAB -->
+        <div class="tab-content" id="content-search">
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">Vector Search</span>
+                    <span class="card-badge">🧠 pgvector &bull; 2 instances</span>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Search Posts (Semantic Similarity)</label>
+                    <div class="input-row" style="margin-bottom:0">
+                        <input id="search-query" placeholder="Search for posts...">
+                        <button class="btn btn-primary btn-sm" onclick="searchPosts()" id="btn-search">Search</button>
+                    </div>
+                </div>
+                <div id="search-result"></div>
             </div>
-            <div id="search-result"></div>
         </div>
     </div>
+
+    <div class="toast-container" id="toast-container"></div>
 
     <script>
         let token = null;
         let currentUser = null;
 
-        function showResult(id, data, type = 'info') {
+        /* ── TAB SWITCHING ── */
+        function switchTab(name) {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            document.getElementById('tab-' + name).classList.add('active');
+            document.getElementById('content-' + name).classList.add('active');
+        }
+
+        /* ── TOAST NOTIFICATIONS ── */
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const icons = { success: '✅', error: '❌', info: 'ℹ️' };
+            const toast = document.createElement('div');
+            toast.className = 'toast ' + type;
+            toast.innerHTML = '<span class="toast-icon">' + icons[type] + '</span>' + message;
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.style.animation = 'toastOut 0.3s ease forwards';
+                setTimeout(() => toast.remove(), 300);
+            }, 3500);
+        }
+
+        /* ── RESULT DISPLAY ── */
+        function showResult(id, data, type) {
             const el = document.getElementById(id);
-            el.className = `result ${type}`;
+            if (!el) return;
+            el.className = 'result ' + type;
             el.textContent = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
         }
 
+        /* ── AUTH STATE ── */
         function updateLoginBar() {
             const bar = document.getElementById('logged-in-bar');
             if (token && currentUser) {
                 bar.style.display = 'flex';
-                document.getElementById('logged-in-text').textContent = `Logged in as: @${currentUser}`;
+                document.getElementById('logged-in-text').textContent = 'Logged in as: @' + currentUser;
+                document.getElementById('avatar-letter').textContent = currentUser.charAt(0).toUpperCase();
             } else {
                 bar.style.display = 'none';
             }
@@ -121,16 +756,19 @@
             token = null;
             currentUser = null;
             updateLoginBar();
+            showToast('Logged out successfully', 'info');
         }
 
-        async function api(method, url, body = null) {
-            const opts = { method, headers: { 'Content-Type': 'application/json' } };
-            if (token) opts.headers['Authorization'] = `Bearer ${token}`;
+        /* ── API HELPER ── */
+        async function api(method, url, body) {
+            const opts = { method: method, headers: { 'Content-Type': 'application/json' } };
+            if (token) opts.headers['Authorization'] = 'Bearer ' + token;
             if (body) opts.body = JSON.stringify(body);
             const res = await fetch(url, opts);
             return await res.json();
         }
 
+        /* ── AUTH ── */
         async function register() {
             try {
                 const data = await api('POST', '/auth/register', {
@@ -142,9 +780,13 @@
                     token = data.token;
                     currentUser = document.getElementById('username').value;
                     updateLoginBar();
+                    showToast('Account created! Welcome @' + currentUser, 'success');
                 }
                 showResult('auth-result', data, data.token ? 'success' : 'error');
-            } catch (e) { showResult('auth-result', e.message, 'error'); }
+            } catch (e) {
+                showResult('auth-result', e.message, 'error');
+                showToast('Registration failed', 'error');
+            }
         }
 
         async function login() {
@@ -157,29 +799,41 @@
                     token = data.token;
                     currentUser = document.getElementById('username').value;
                     updateLoginBar();
+                    showToast('Welcome back @' + currentUser + '!', 'success');
                 }
                 showResult('auth-result', data, data.token ? 'success' : 'error');
-            } catch (e) { showResult('auth-result', e.message, 'error'); }
+            } catch (e) {
+                showResult('auth-result', e.message, 'error');
+                showToast('Login failed', 'error');
+            }
         }
 
+        /* ── USERS ── */
         async function listUsers() {
             try {
                 const data = await api('GET', '/api/users');
                 showResult('user-result', data, 'info');
-            } catch (e) { showResult('user-result', e.message, 'error'); }
+                showToast('Loaded ' + (data.count || 0) + ' users', 'success');
+            } catch (e) {
+                showResult('user-result', e.message, 'error');
+            }
         }
 
         async function getUser() {
             try {
                 const id = document.getElementById('user-id').value;
-                const data = await api('GET', `/api/users/${id}`);
+                const data = await api('GET', '/api/users/' + id);
                 showResult('user-result', data, data.user ? 'success' : 'error');
-            } catch (e) { showResult('user-result', e.message, 'error'); }
+            } catch (e) {
+                showResult('user-result', e.message, 'error');
+            }
         }
 
+        /* ── POSTS ── */
         async function createPost() {
             if (!token) {
                 showResult('post-result', 'Please login first!', 'error');
+                showToast('Login required to post', 'error');
                 return;
             }
             try {
@@ -187,8 +841,13 @@
                     content: document.getElementById('post-content').value
                 });
                 showResult('post-result', data, data.post_id ? 'success' : 'error');
-                document.getElementById('post-content').value = '';
-            } catch (e) { showResult('post-result', e.message, 'error'); }
+                if (data.post_id) {
+                    document.getElementById('post-content').value = '';
+                    showToast('Post created!', 'success');
+                }
+            } catch (e) {
+                showResult('post-result', e.message, 'error');
+            }
         }
 
         async function getFeed() {
@@ -196,21 +855,27 @@
                 const data = await api('GET', '/api/posts');
                 if (data.posts && data.posts.length > 0) {
                     let html = '';
-                    data.posts.forEach(p => {
-                        html += `<div class="post-item">
-                            <div class="username">@${p.username}</div>
-                            <div class="content">${p.content}</div>
-                            <div class="meta">
-                                <span>❤️ ${p.likes} likes ${token ? `<button class="like" onclick="likePost(${p.id})">Like</button>` : ''}</span>
-                                <span>Instance: ${data.instance}</span>
-                            </div>
-                        </div>`;
+                    data.posts.forEach(function(p) {
+                        html += '<div class="post-item">' +
+                            '<div class="username">@' + p.username + '</div>' +
+                            '<div class="content">' + p.content + '</div>' +
+                            '<div class="meta">' +
+                                '<div class="likes-info">' +
+                                    '<span>❤️ ' + p.likes + ' likes</span>' +
+                                    (token ? ' <button class="btn btn-like" onclick="likePost(' + p.id + ')">♥ Like</button>' : '') +
+                                '</div>' +
+                                '<span class="instance-tag">Instance: ' + data.instance + '</span>' +
+                            '</div>' +
+                        '</div>';
                     });
                     document.getElementById('post-result').innerHTML = html;
+                    showToast('Loaded ' + data.posts.length + ' posts', 'success');
                 } else {
                     showResult('post-result', 'No posts yet. Create one!', 'info');
                 }
-            } catch (e) { showResult('post-result', e.message, 'error'); }
+            } catch (e) {
+                showResult('post-result', e.message, 'error');
+            }
         }
 
         async function likePost(postId) {
@@ -219,33 +884,45 @@
                 return;
             }
             try {
-                const data = await api('POST', `/api/posts/${postId}/like`);
+                const data = await api('POST', '/api/posts/' + postId + '/like');
+                if (data.message === 'post liked') {
+                    showToast('Post liked! ❤️', 'success');
+                } else {
+                    showToast(data.message || 'Already liked', 'info');
+                }
                 showResult('post-result', data, data.message === 'post liked' ? 'success' : 'error');
                 getFeed();
-            } catch (e) { showResult('post-result', e.message, 'error'); }
+            } catch (e) {
+                showResult('post-result', e.message, 'error');
+            }
         }
 
+        /* ── SEARCH ── */
         async function searchPosts() {
             try {
                 const q = document.getElementById('search-query').value;
-                const data = await api('GET', `/search/posts?q=${encodeURIComponent(q)}`);
+                const data = await api('GET', '/search/posts?q=' + encodeURIComponent(q));
                 if (data.results && data.results.length > 0) {
                     let html = '';
-                    data.results.forEach(r => {
-                        html += `<div class="post-item">
-                            <div class="username">@${r.username} <span style="color:#71717a;font-weight:400">• similarity: ${r.similarity}</span></div>
-                            <div class="content">${r.content}</div>
-                            <div class="meta">
-                                <span>❤️ ${r.likes} likes</span>
-                                <span>Instance: ${data.instance}</span>
-                            </div>
-                        </div>`;
+                    data.results.forEach(function(r) {
+                        html += '<div class="post-item">' +
+                            '<div class="username">@' + r.username +
+                                ' <span style="color:var(--text-muted);font-weight:400">• similarity: ' + r.similarity + '</span></div>' +
+                            '<div class="content">' + r.content + '</div>' +
+                            '<div class="meta">' +
+                                '<span>❤️ ' + r.likes + ' likes</span>' +
+                                '<span class="instance-tag">Instance: ' + data.instance + '</span>' +
+                            '</div>' +
+                        '</div>';
                     });
                     document.getElementById('search-result').innerHTML = html;
+                    showToast('Found ' + data.results.length + ' results', 'success');
                 } else {
                     showResult('search-result', data, 'info');
                 }
-            } catch (e) { showResult('search-result', e.message, 'error'); }
+            } catch (e) {
+                showResult('search-result', e.message, 'error');
+            }
         }
     </script>
 </body>
