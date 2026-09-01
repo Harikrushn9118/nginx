@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SocialConnect</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0a0a0a; color: #e4e4e7; min-height: 100vh; }
+        .header { background: linear-gradient(135deg, #1a1a2e, #16213e); padding: 20px 30px; border-bottom: 1px solid #27272a; display: flex; justify-content: space-between; align-items: center; }
+        .header h1 { color: #818cf8; font-size: 22px; }
+        .header .status { font-size: 12px; color: #71717a; }
+        .logged-in-bar { background: #052e16; border-bottom: 1px solid #166534; padding: 10px 30px; font-size: 13px; color: #4ade80; display: none; justify-content: space-between; align-items: center; }
+        .logged-in-bar button { background: #991b1b; color: white; border: none; padding: 5px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; }
+        .container { max-width: 700px; margin: 30px auto; padding: 0 20px; }
+        .card { background: #18181b; border: 1px solid #27272a; border-radius: 12px; padding: 24px; margin-bottom: 16px; }
+        .card h2 { color: #a5b4fc; font-size: 16px; margin-bottom: 12px; }
+        .input-row { display: flex; gap: 10px; margin-bottom: 10px; }
+        input { background: #27272a; border: 1px solid #3f3f46; color: #e4e4e7; padding: 10px 14px; border-radius: 8px; flex: 1; font-size: 14px; outline: none; }
+        input:focus { border-color: #818cf8; }
+        button { background: #4f46e5; color: white; border: none; padding: 10px 18px; border-radius: 8px; font-size: 14px; cursor: pointer; font-weight: 500; }
+        button:hover { background: #4338ca; }
+        button.secondary { background: #27272a; color: #a1a1aa; }
+        button.secondary:hover { background: #3f3f46; }
+        button.like { background: #be185d; padding: 6px 14px; font-size: 12px; }
+        button.like:hover { background: #9d174d; }
+        .result { margin-top: 12px; padding: 12px; border-radius: 8px; font-size: 13px; font-family: monospace; white-space: pre-wrap; word-break: break-all; max-height: 300px; overflow-y: auto; }
+        .result.success { background: #052e16; border: 1px solid #166534; color: #4ade80; }
+        .result.error { background: #450a0a; border: 1px solid #991b1b; color: #fca5a5; }
+        .result.info { background: #0c1929; border: 1px solid #1e3a5f; color: #93c5fd; }
+        .post-item { background: #1f1f23; border: 1px solid #27272a; border-radius: 8px; padding: 14px; margin-top: 8px; }
+        .post-item .username { color: #818cf8; font-weight: 600; font-size: 13px; }
+        .post-item .content { color: #d4d4d8; margin: 6px 0; font-size: 14px; }
+        .post-item .meta { color: #71717a; font-size: 11px; display: flex; justify-content: space-between; align-items: center; }
+        .section-title { color: #71717a; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 16px; }
+        .badge { display: inline-block; background: #312e81; color: #a5b4fc; padding: 2px 8px; border-radius: 4px; font-size: 11px; margin-left: 8px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>SocialConnect</h1>
+        <div class="status">NGINX Load Balanced • 11 Containers</div>
+    </div>
+    <div class="logged-in-bar" id="logged-in-bar">
+        <span id="logged-in-text">Logged in as: —</span>
+        <button onclick="logout()">Logout</button>
+    </div>
+    <div class="container">
+
+        <!-- AUTH -->
+        <div class="card">
+            <h2>Auth Service <span class="badge">ip_hash • 2 containers</span></h2>
+            <div class="input-row">
+                <input id="username" placeholder="Username">
+                <input id="password" placeholder="Password" type="password">
+            </div>
+            <div class="input-row">
+                <input id="email" placeholder="Email (optional)">
+            </div>
+            <div class="input-row">
+                <button onclick="register()">Register</button>
+                <button class="secondary" onclick="login()">Login</button>
+            </div>
+            <div id="auth-result"></div>
+        </div>
+
+        <!-- USERS -->
+        <div class="card">
+            <h2>User Service <span class="badge">least_conn • 2 containers</span></h2>
+            <div class="input-row">
+                <button onclick="listUsers()">List Users</button>
+                <input id="user-id" placeholder="User ID" style="max-width:100px">
+                <button class="secondary" onclick="getUser()">Get Profile</button>
+            </div>
+            <div id="user-result"></div>
+        </div>
+
+        <!-- POSTS -->
+        <div class="card">
+            <h2>Post Service <span class="badge">round_robin • 3 containers</span></h2>
+            <div class="input-row">
+                <input id="post-content" placeholder="Write a post..." style="flex:3">
+                <button onclick="createPost()">Post</button>
+            </div>
+            <button class="secondary" onclick="getFeed()" style="margin-top:8px">Load Feed</button>
+            <div id="post-result"></div>
+        </div>
+
+        <!-- SEARCH -->
+        <div class="card">
+            <h2>Search Service <span class="badge">least_conn • pgvector</span></h2>
+            <div class="input-row">
+                <input id="search-query" placeholder="Search posts (vector similarity)...">
+                <button onclick="searchPosts()">Search</button>
+            </div>
+            <div id="search-result"></div>
+        </div>
+    </div>
+
+    <script>
+        let token = null;
+        let currentUser = null;
+
+        function showResult(id, data, type = 'info') {
+            const el = document.getElementById(id);
+            el.className = `result ${type}`;
+            el.textContent = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+        }
+
+        function updateLoginBar() {
+            const bar = document.getElementById('logged-in-bar');
+            if (token && currentUser) {
+                bar.style.display = 'flex';
+                document.getElementById('logged-in-text').textContent = `Logged in as: @${currentUser}`;
+            } else {
+                bar.style.display = 'none';
+            }
+        }
+
+        function logout() {
+            token = null;
+            currentUser = null;
+            updateLoginBar();
+        }
+
+        async function api(method, url, body = null) {
+            const opts = { method, headers: { 'Content-Type': 'application/json' } };
+            if (token) opts.headers['Authorization'] = `Bearer ${token}`;
+            if (body) opts.body = JSON.stringify(body);
+            const res = await fetch(url, opts);
+            return await res.json();
+        }
+
+        async function register() {
+            try {
+                const data = await api('POST', '/auth/register', {
+                    username: document.getElementById('username').value,
+                    password: document.getElementById('password').value,
+                    email: document.getElementById('email').value
+                });
+                if (data.token) {
+                    token = data.token;
+                    currentUser = document.getElementById('username').value;
+                    updateLoginBar();
+                }
+                showResult('auth-result', data, data.token ? 'success' : 'error');
+            } catch (e) { showResult('auth-result', e.message, 'error'); }
+        }
+
+        async function login() {
+            try {
+                const data = await api('POST', '/auth/login', {
+                    username: document.getElementById('username').value,
+                    password: document.getElementById('password').value
+                });
+                if (data.token) {
+                    token = data.token;
+                    currentUser = document.getElementById('username').value;
+                    updateLoginBar();
+                }
+                showResult('auth-result', data, data.token ? 'success' : 'error');
+            } catch (e) { showResult('auth-result', e.message, 'error'); }
+        }
+
+        async function listUsers() {
+            try {
+                const data = await api('GET', '/api/users');
+                showResult('user-result', data, 'info');
+            } catch (e) { showResult('user-result', e.message, 'error'); }
+        }
+
+        async function getUser() {
+            try {
+                const id = document.getElementById('user-id').value;
+                const data = await api('GET', `/api/users/${id}`);
+                showResult('user-result', data, data.user ? 'success' : 'error');
+            } catch (e) { showResult('user-result', e.message, 'error'); }
+        }
+
+        async function createPost() {
+            if (!token) {
+                showResult('post-result', 'Please login first!', 'error');
+                return;
+            }
+            try {
+                const data = await api('POST', '/api/posts', {
+                    content: document.getElementById('post-content').value
+                });
+                showResult('post-result', data, data.post_id ? 'success' : 'error');
+                document.getElementById('post-content').value = '';
+            } catch (e) { showResult('post-result', e.message, 'error'); }
+        }
+
+        async function getFeed() {
+            try {
+                const data = await api('GET', '/api/posts');
+                if (data.posts && data.posts.length > 0) {
+                    let html = '';
+                    data.posts.forEach(p => {
+                        html += `<div class="post-item">
+                            <div class="username">@${p.username}</div>
+                            <div class="content">${p.content}</div>
+                            <div class="meta">
+                                <span>❤️ ${p.likes} likes ${token ? `<button class="like" onclick="likePost(${p.id})">Like</button>` : ''}</span>
+                                <span>Instance: ${data.instance}</span>
+                            </div>
+                        </div>`;
+                    });
+                    document.getElementById('post-result').innerHTML = html;
+                } else {
+                    showResult('post-result', 'No posts yet. Create one!', 'info');
+                }
+            } catch (e) { showResult('post-result', e.message, 'error'); }
+        }
+
+        async function likePost(postId) {
+            if (!token) {
+                showResult('post-result', 'Please login first!', 'error');
+                return;
+            }
+            try {
+                const data = await api('POST', `/api/posts/${postId}/like`);
+                showResult('post-result', data, data.message === 'post liked' ? 'success' : 'error');
+                getFeed();
+            } catch (e) { showResult('post-result', e.message, 'error'); }
+        }
+
+        async function searchPosts() {
+            try {
+                const q = document.getElementById('search-query').value;
+                const data = await api('GET', `/search/posts?q=${encodeURIComponent(q)}`);
+                if (data.results && data.results.length > 0) {
+                    let html = '';
+                    data.results.forEach(r => {
+                        html += `<div class="post-item">
+                            <div class="username">@${r.username} <span style="color:#71717a;font-weight:400">• similarity: ${r.similarity}</span></div>
+                            <div class="content">${r.content}</div>
+                            <div class="meta">
+                                <span>❤️ ${r.likes} likes</span>
+                                <span>Instance: ${data.instance}</span>
+                            </div>
+                        </div>`;
+                    });
+                    document.getElementById('search-result').innerHTML = html;
+                } else {
+                    showResult('search-result', data, 'info');
+                }
+            } catch (e) { showResult('search-result', e.message, 'error'); }
+        }
+    </script>
+</body>
+</html>
