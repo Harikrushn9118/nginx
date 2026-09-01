@@ -1,45 +1,40 @@
 # NGINX Load Balancer & Reverse Proxy Demo
 
-This project demonstrates a production-ready web architecture using NGINX as a reverse proxy, load balancer, and rate limiter. It routes traffic to 9 Python (FastAPI) microservices, all backed by a real PostgreSQL database, and secures traffic with HTTPS/SSL.
+This project is a production-ready web architecture setup. It uses NGINX as a reverse proxy and load balancer to route traffic to 4 different Python (FastAPI) microservices. Everything is backed by a real PostgreSQL database and secured with HTTPS/SSL.
 
 ## The Architecture
 
 ```text
 User → NGINX (Port 443 / HTTPS)
           │
-          ├── /auth/*     → Auth Service (3 instances)
-          │                 (Uses ip_hash — sticky sessions)
-          │
-          └── /api/*      → Backend Service (6 instances)
-                            (Uses least_conn — sends to least busy server)
+          ├── /auth/*     → Auth Service
+          ├── /post/*     → Post Service
+          ├── /user/*     → User Service
+          └── /search/*   → Search Service
 ```
 
-All 9 Python containers connect to a single **PostgreSQL** database container to ensure state is shared perfectly across the cluster.
+All 4 microservices connect to a single **PostgreSQL** database so that data is perfectly shared across the whole system.
 
-## Key Features Configured
+## Key Features
 
-1. **SSL / HTTPS Termination:** NGINX handles the SSL certificates on port 443. All HTTP traffic on port 80 is automatically redirected to HTTPS (301 redirect).
-2. **PostgreSQL Database:** Replaced file-based storage with a robust database for scalable, concurrent reads and writes.
-3. **Rate Limiting:** 
-   - `/auth/` is strictly limited (5 requests/sec) to prevent brute force attacks.
-   - `/api/` is more relaxed (10 requests/sec).
-4. **Load Balancing:** NGINX distributes traffic across 9 containers using two different algorithms (`least_conn` and `ip_hash`).
-5. **Security Headers:** Adds `X-Frame-Options`, `X-XSS-Protection`, and `X-Content-Type-Options` to protect the frontend.
-6. **Hidden File Blocking:** NGINX immediately blocks requests to `.env` or `.git` folders.
+1. **Automated CI/CD:** We have a GitHub Actions pipeline set up. Whenever code is pushed to `main`, a robot automatically builds the Docker images for all 4 services, tests them by running a health check, and then pushes them to GitHub Container Registry (`ghcr.io`).
+2. **SSL / HTTPS Termination:** NGINX handles the SSL certificates. If someone tries to connect on regular HTTP (port 80), NGINX immediately redirects them to a secure HTTPS connection (port 443).
+3. **PostgreSQL Database:** We are using a real database instead of saving files to the disk, which means the app can scale up without data issues.
+4. **Rate Limiting:** NGINX limits how fast people can make requests. This stops hackers from trying to brute-force passwords.
+5. **Security Headers & Blocking:** NGINX adds security headers to protect the frontend, and it completely blocks anyone trying to snoop on hidden folders like `.env` or `.git`.
 
 ## Tech Stack
 - **Proxy:** NGINX
-- **Backend:** FastAPI (Python) + asyncpg
-- **Frontend:** Vanilla HTML/JS/CSS
+- **Backend:** FastAPI (Python)
 - **Database:** PostgreSQL
-- **Security:** OpenSSL (Self-signed certs for local testing)
+- **CI/CD:** GitHub Actions
 - **Deployment:** Docker Compose
 
 ## Setup Instructions
 
 If you want to run this yourself, make sure you have Docker and Docker Compose installed.
 
-1. Start all 11 containers (NGINX + 9 Backends + PostgreSQL):
+1. Start all the containers:
 ```bash
 docker-compose up --build -d
 ```
@@ -50,15 +45,12 @@ http://localhost
 ```
 *Notice how NGINX automatically redirects you to `https://localhost`!* 
 
-*(Note: Because we generated a local self-signed SSL certificate, your browser will show a security warning. Click "Advanced" → "Proceed to localhost" to view the app).*
+*(Note: Because we are using local self-signed SSL certificates for testing, your browser will warn you that the connection isn't private. Just click "Advanced" → "Proceed to localhost" to see the app).*
 
-## Viewing the Load Balancer in Action
-If you want to see which specific container handled your request, you can check the logs for that container:
+## Viewing the Logs
+
+If you want to see what is happening behind the scenes, you can easily check the logs for any service:
 ```bash
-docker logs auth-1
-docker logs backend-3
-```
-You can also watch the NGINX logs to see the exact response times and upstream servers:
-```bash
+docker logs auth-service
 docker logs nginx-proxy
 ```
